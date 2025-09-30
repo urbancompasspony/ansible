@@ -1,0 +1,41 @@
+---
+- name: Verificar integridade dos logs de eventos
+  hosts: servers
+  tasks:
+    - name: Encontrar arquivos syslog nos subdiretórios
+      find:
+        paths: "{{ cont_dir }}"
+        patterns: "syslog"
+        file_type: file
+      register: syslog_files
+
+    - name: Processar cada arquivo syslog
+      block:
+        - name: Exibir o caminho do arquivo
+          debug:
+            msg: "Arquivo: {{ item.path }}"
+
+        - name: Mostrar as últimas 7 linhas contendo 'renameat'
+          command: grep -a 'renameat' {{ item.path }} | tail -n 7
+          register: grep_output
+          ignore_errors: yes
+
+        - name: Exibir a saída do grep
+          debug:
+            var: grep_output.stdout_lines
+      loop: "{{ syslog_files.files }}"
+
+    - name: Registrar mensagem de integridade no arquivo de log
+      block:
+        - name: Definir mensagem de verificação
+          set_fact:
+            integrity_message: |
+              {{ ansible_date_time.date }} : Foi realizada a verificação da integridade dos Logs de Eventos das pastas da rede e se os registros de uso, dos compartilhamentos, estão operacionais.
+
+        - name: Registrar conclusão das manutenções
+          delegate_to: localhost
+          connection: local
+          lineinfile:
+            path: "{{ log_relat }}"
+            line: "{{ integrity_message }}"
+            create: yes

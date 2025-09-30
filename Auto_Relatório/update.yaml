@@ -1,0 +1,23 @@
+---
+- name: Atualizar e limpar
+  hosts: servers
+  tasks:
+    - name: Atualizar pacotes
+      become: yes
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Autoremove
+      become: yes
+      apt:
+        autoremove: yes
+        purge: yes
+
+    - name: Registrar conclusão das atualizações
+      delegate_to: localhost
+      connection: local
+      lineinfile:
+        path: "{{ log_relat }}"
+        line: "{{ ansible_date_time.date }} : O sistema do servidor foi atualizado e está em dia com a segurança digital."
+        create: yes

@@ -1,0 +1,68 @@
+---
+- name: Memória Swap
+  hosts: servers
+  tasks:
+    - name: Criar arquivo de log local se não existir
+      delegate_to: localhost
+      file:
+        path: "{{ log_swap }}"
+        state: touch
+      run_once: true  # Executar apenas uma vez
+
+    - name: Verificar memória disponível
+      shell: free -m | awk '/^Mem:/ {print $7}'
+      register: available_memory
+      changed_when: false
+
+    - name: Verificar swap em uso
+      shell: free -m | awk '/^Swap:/ {print $3}'
+      register: swap_used
+      changed_when: false
+
+    - name: Desativar a Swap
+      block:
+        - name: Executar swapoff
+          become: yes
+          command: swapoff -a
+          register: swapoff_result
+
+        - name: Registrar desativação da swap no log
+          delegate_to: localhost
+          connection: local
+          lineinfile:
+            path: "{{ log_swap }}"
+            line: "{{ ansible_date_time.iso8601 }} - SWAP OFF executado com sucesso no host {{ inventory_hostname }} (Memória disponível: {{ available_memory.stdout }} MB, Swap em uso: {{ swap_used.stdout }} MB)"
+            create: yes
+          when: swapoff_result is success
+      # Verifica se a memória disponível é maior que o mínimo E maior que a swap em uso
+      when: available_memory.stdout|int > min_mem_available_mb|int and available_memory.stdout|int > swap_used.stdout|int
+
+    - name: Registrar falha na desativação da swap
+      delegate_to: localhost
+      connection: local
+      lineinfile:
+        path: "{{ log_swap }}"
+        line: "{{ ansible_date_time.iso8601 }} - FALHA: Memória disponível ({{ available_memory.stdout }} MB) insuficiente para desativar swap no host {{ inventory_hostname }}. Mínimo necessário: {{ min_mem_available_mb }} MB, Swap em uso: {{ swap_used.stdout }} MB"
+        create: yes
+      # Verifica quando a memória disponível é insuficiente (menor que o mínimo OU menor que a swap em uso)
+      when: available_memory.stdout|int <= min_mem_available_mb|int or available_memory.stdout|int <= swap_used.stdout|int
+
+    - name: Aguardar um momento para operações internas
+      pause:
+        seconds: 2
+
+    - name: Reativar a Swap
+      block:
+        - name: Executar swapon
+          become: yes
+          command: swapon -a
+          register: swapon_result
+
+        - name: Registrar reativação da swap no log
+          delegate_to: localhost
+          connection: local
+          lineinfile:
+            path: "{{ log_swap }}"
+            line: "{{ ansible_date_time.iso8601 }} - SWAP ON executado com sucesso no host {{ inventory_hostname }}"
+            create: yes
+          when: swapon_result is success

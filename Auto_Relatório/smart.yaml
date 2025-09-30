@@ -1,0 +1,89 @@
+- name: Coleta Abrangente de Dados SMART
+  hosts: servers
+  tasks:
+    - name: Comprehensive SMART Data Collection
+      block:
+        - name: Collect SMART data for all storage devices
+          become: yes
+          shell: |
+            # Function to collect SMART data for a device
+              collect_smart_data() {
+              local device="$1"
+              local output_file="{{ remote_log_dir }}"
+              local processed_devices_file="/tmp/processed_devices.log"
+
+              # Ensure device exists before collecting data
+              if [ -b "$device" ] || [ -c "$device" ]; then
+                # Check if the device has already been processed
+                if grep -q "$device" "$processed_devices_file"; then
+                  echo "Skipping $device as it has already been processed."
+                  return
+                fi
+                echo "############################################################################" >> "$output_file"
+                echo "" >> "$output_file"
+
+                echo "Collecting SMART data for $device"
+                # Collect full SMART information
+                echo "DEVICE: $device" >> "$output_file"
+                echo "" >> "$output_file"
+
+                # Device identification
+                smartctl -i -T permissive "$device" >> "$output_file"
+                echo "" >> "$output_file"
+
+                # Full SMART attributes
+                echo "SMART ATTRIBUTES:" >> "$output_file"
+                smartctl -A -T permissive "$device" >> "$output_file"
+                echo "" >> "$output_file"
+
+                # Check disk usage percentage
+                usage=$(df -h "$device" | awk 'NR==2 {print $5}' | sed 's/%//')
+                if [ -n "$usage" ] && [ "$usage" -ge {{ usage_threshold }} ]; then
+                  echo "$device USAGE: $usage%" >> "{{ remote_log_dir }}/high_usage_detected.log"
+                fi
+                # Mark the device as processed
+                echo "$device" >> "$processed_devices_file"
+
+              fi
+            }
+            # Collect SATA/SAS devices
+            for device in /dev/sd[a-z]; do
+              [ -b "$device" ] && collect_smart_data "$device"
+            done
+
+            # Collect NVMe devices
+            for device in /dev/nvme[0-9]n[0-9]p[0-9]; do
+              [ -b "$device" ] && collect_smart_data "$device"
+            done
+
+            # Collect RAID devices
+            for sg in /dev/sg[0-9]; do
+              [ -c "$sg" ] && for raid_id in {0..10}; do
+                smartctl -d megaraid,$raid_id -i "$sg" > /dev/null
+                  collect_smart_data "$sg" "megaraid_$raid_id"
+              done
+            done
+
+          args:
+            executable: /bin/bash
+          register: smart_collection
+          changed_when: false
+          ignore_errors: yes
+    - name: Remove processed devices file
+      become: yes
+      file:
+        path: /tmp/processed_devices.log
+        state: absent
+
+    - name: Synchronize logs from remote machines
+      fetch:
+        src: "{{ remote_log_dir }}"
+        dest: "{{ local_log_dir }}/"
+        flat: yes
+        mode: pull
+
+    - name: Remove remote dump
+      become: yes
+      file:
+        path: "{{ remote_log_dir }}"
+        state: absent

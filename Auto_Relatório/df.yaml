@@ -1,0 +1,22 @@
+---
+- name: Verificar discos com alta utilização
+  hosts: servers
+  tasks:
+    - name: Executar o comando df -h
+      command: df -h
+      register: disk_usage
+
+    - name: Filtrar discos com mais de 90% de uso
+      set_fact:
+        high_usage_disks: "{{ disk_usage.stdout_lines | select('search', '^/dev/') | select('search', '[9][0-9]%' ) | list }}"
+
+    - name: Salvar logs apenas para discos com alta utilização
+      delegate_to: localhost
+      copy:
+        content: |
+          Host: {{ inventory_hostname }}
+          Data e Hora: {{ ansible_date_time.date }} {{ ansible_date_time.time }}
+          Discos com mais de 90% de capacidade:
+          {{ high_usage_disks | join('\n') }}
+        dest: "{{ local_log_dir }}/{{ inventory_hostname }}_high_usage.log"
+      when: high_usage_disks | length > 0

@@ -1,0 +1,53 @@
+- name: Removendo Logs Localhost
+  hosts: all
+
+  connection: local
+
+  tasks:
+    - name: Removing remote log folder
+      shell: |
+        rm -rvf "{{ remote_log_dir }}"
+      args:
+        executable: /bin/bash
+    - name: Recriate remote log folder
+      file:
+        path: "{{ remote_log_dir }}"
+        state: directory
+        recurse: yes
+        force: yes
+    - name: Removing local log folder
+      shell: |
+        rm -rvf "{{ local_log_dir }}"
+      args:
+        executable: /bin/bash
+    - name: Recriate local log folder
+      file:
+        path: "{{ local_log_dir }}"
+        state: directory
+        recurse: yes
+        force: yes
+
+    - name: Create folder
+      file:
+        path: "{{ local_log_dir }}/{{ inventory_hostname }}"
+        state: directory
+        recurse: yes
+
+    - name: Create file
+      file:
+        path: "{{ log_relat }}"
+        state: touch
+
+    - name: Registrar mensagem de boas vindas
+      block:
+        - name: Definir mensagem
+          set_fact:
+            intro_message: |
+              Conforme estipulado em contrato mensal de prestação de serviços na área de informática,
+              segue abaixo o relatório de manutenções preventivas e corretivas executados no servidor no período de {{ month_names[ansible_date_time.month] }}
+
+        - name: Adicionar mensagem
+          lineinfile:
+            path: "{{ log_relat }}"
+            line: "{{ intro_message }}"
+            create: yes

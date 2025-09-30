@@ -1,0 +1,47 @@
+---
+- name: Executar todas as playbooks em sequencia
+  hosts: servers
+  tasks:
+    - name: Limpar e recriar a pasta Logs
+      ansible.builtin.include_tasks:
+        file: "{{ relat_path }}/clean_logs.yaml"
+
+    - name: Swap ON and swap OFF
+      ansible.builtin.include_tasks:
+        file: "{{ relat_path }}/swap.yaml"
+
+    - name: Atualizar o sistema
+      ansible.builtin.include_tasks:
+        file: "{{ relat_path }}/update.yaml"
+
+    - name: SMART
+      ansible.builtin.include_tasks:
+        file: "{{ relat_path }}/smart.yaml"
+
+    - name: Ajustes do AD-DC se existente
+      ansible.builtin.include_tasks:
+        file: "{{ relat_path }}/domain.yaml"
+
+    - name: Manutenções PiHole
+      ansible.builtin.include_tasks:
+        file: "{{ relat_path }}/pihole.yaml"
+
+    - name: Pentest
+      ansible.builtin.include_tasks:
+        file: "{{ relat_path }}/pentest.yaml"
+
+    - name: SYS Logs
+      ansible.builtin.include_tasks:
+        file: "{{ relat_path }}/syslog.yaml"
+
+    - name: Backups
+      ansible.builtin.include_tasks:
+        file: "{{ relat_path }}/backups.yaml"
+
+    - name: Clean old container images
+      ansible.builtin.include_tasks:
+        file: "{{ relat_path }}/clean_containers.yaml"
+
+    - name: Swap ON and swap OFF again!
+      ansible.builtin.include_tasks:
+        file: "{{ relat_path }}/swap.yaml"
